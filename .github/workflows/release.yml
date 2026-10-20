@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number, for example 1.0.24"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${{ github.ref_name }}"
+          fi
+          version="$(echo "$version" | xargs)"
+          version="${version#v}"
+          version="${version#V}"
+          if ! [[ "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "Version must look like 1.0.24. Got: $version"
+            exit 1
+          fi
+          code=$(( BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3] ))
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile --config.node-linker=hoisted
+
+      - name: Set app version
+        run: |
+          node -e '
+            const fs = require("fs");
+            const config = JSON.parse(fs.readFileSync("app.json", "utf8"));
+            config.expo.version = process.argv[1];
+            config.expo.android = { ...config.expo.android, versionCode: Number(process.argv[2]) };
+            fs.writeFileSync("app.json", JSON.stringify(config, null, 2));
+          ' "${{ steps.version.outputs.value }}" "${{ steps.version.outputs.code }}"
+
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --clean --no-install
+        env:
+          CI: "1"
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: |
+          mkdir -p "${{ runner.temp }}/out"
+          cp android/app/build/outputs/apk/release/app-release.apk "${{ runner.temp }}/out/CheckSayadi_${{ steps.version.outputs.value }}.apk"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.value }}
+          name: ${{ steps.version.outputs.value }}
+          files: |
+            ${{ runner.temp }}/out/CheckSayadi_${{ steps.version.outputs.value }}.apk
