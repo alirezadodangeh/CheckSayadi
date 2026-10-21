@@ -7,6 +7,8 @@ export interface Entry {
   sayyadId: string | null;
   name: string | null;
   nationalCode: string | null;
+  /** حقوقی: شناسه ملی ۱۱ رقمی */
+  isLegal?: boolean;
   checkSerial: string | null;
   rawText: string;
   createdAt: number;
@@ -18,18 +20,26 @@ export interface ExtractedData {
   sayyadId: string | null;
   name: string | null;
   nationalCode: string | null;
+  /** حقوقی: شناسه ملی ۱۱ رقمی */
+  isLegal?: boolean;
   checkSerial: string | null;
   rawText: string;
 }
 
 // Normalize Persian/Arabic digits to English
-function normalizeDigits(text: string): string {
+export function normalizeDigits(text: string): string {
   return text
     .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660));
 }
 
-export function extractData(rawText: string): ExtractedData {
+export function sanitizeNationalCode(value: string, isLegal: boolean): string {
+  const digits = normalizeDigits(value).replace(/\D/g, '');
+  return digits.slice(0, isLegal ? 11 : 10);
+}
+
+export function extractData(rawText: string, options?: { legal?: boolean }): ExtractedData {
+  const legal = options?.legal ?? false;
   const text = normalizeDigits(rawText);
 
   // --- Date extraction (Shamsi: 1405/06/10 or 1405-06-10) ---
@@ -78,20 +88,31 @@ export function extractData(rawText: string): ExtractedData {
     }
   }
 
-  // --- National code (10 digits, not part of Sayyad ID) ---
+  // --- National code ---
+  // حقیقی: ۱۰ رقم. حقوقی (وقتی legal روشن است): شناسه ملی ۱۱ رقم.
   let nationalCode: string | null = null;
-  // Try keyword-based first
-  const nationalKeywordRegex = /(?:کد\s*ملی|شماره\s*ملی)[:\s]*(\d{10})/;
-  const nationalKeywordMatch = text.match(nationalKeywordRegex);
-  if (nationalKeywordMatch) {
-    nationalCode = nationalKeywordMatch[1];
-  } else {
-    // Find standalone 10-digit numbers not part of 16-digit
-    const textWithoutSayyad = sayyadId ? text.replace(sayyadId, '') : text;
-    const nationalRegex = /\b(\d{10})\b/;
-    const nationalMatch = textWithoutSayyad.match(nationalRegex);
-    if (nationalMatch) {
-      nationalCode = nationalMatch[1];
+  const textWithoutSayyad = sayyadId ? text.replace(sayyadId, ' ') : text;
+  if (legal) {
+    const legalKeywordRegex = /(?:شناسه\s*ملی|کد\s*ملی|شماره\s*ملی)[:\s]*(\d{11})/;
+    const legalKeywordMatch = textWithoutSayyad.match(legalKeywordRegex);
+    if (legalKeywordMatch) {
+      nationalCode = legalKeywordMatch[1];
+    } else {
+      // شماره‌های ۰۹… معمولاً موبایل‌اند، نه شناسه ملی
+      const legalRegex = /\b([1-9]\d{10})\b/g;
+      const legalMatch = legalRegex.exec(textWithoutSayyad);
+      if (legalMatch) nationalCode = legalMatch[1];
+    }
+  }
+  if (!legal && !nationalCode) {
+    const nationalKeywordRegex = /(?:کد\s*ملی|شماره\s*ملی)[:\s]*(\d{10})/;
+    const nationalKeywordMatch = textWithoutSayyad.match(nationalKeywordRegex);
+    if (nationalKeywordMatch) {
+      nationalCode = nationalKeywordMatch[1];
+    } else {
+      const nationalRegex = /\b(\d{10})\b/;
+      const nationalMatch = textWithoutSayyad.match(nationalRegex);
+      if (nationalMatch) nationalCode = nationalMatch[1];
     }
   }
 

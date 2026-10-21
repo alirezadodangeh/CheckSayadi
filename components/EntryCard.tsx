@@ -15,6 +15,7 @@ interface Props {
   entry: Entry;
   onDelete: (id: string) => void;
   onEdit: (entry: Entry) => void;
+  onSetDate: (entry: Entry) => void;
 }
 
 function formatAmount(amount: string): string {
@@ -23,7 +24,7 @@ function formatAmount(amount: string): string {
   return num.toLocaleString();
 }
 
-function EntryCard({ entry, onDelete, onEdit }: Props) {
+function EntryCard({ entry, onDelete, onEdit, onSetDate }: Props) {
   const handleDelete = () => {
     Alert.alert('حذف', 'این آیتم حذف شود؟', [
       { text: 'انصراف', style: 'cancel' },
@@ -61,15 +62,22 @@ function EntryCard({ entry, onDelete, onEdit }: Props) {
         </View>
 
         {entry.date ? (
-          <View style={styles.dateBadge}>
+          <Pressable
+            onPress={() => onSetDate(entry)}
+            style={({ pressed }) => [styles.dateBadge, pressed && { opacity: 0.7 }]}
+          >
             <MaterialIcons name="event" size={14} color={Colors.primary} />
             <Text style={styles.dateText}>{entry.date}</Text>
-          </View>
+            <MaterialIcons name="edit" size={12} color={Colors.primary} />
+          </Pressable>
         ) : (
-          <View style={[styles.dateBadge, styles.dateBadgeEmpty]}>
+          <Pressable
+            onPress={() => onSetDate(entry)}
+            style={({ pressed }) => [styles.dateBadge, styles.dateBadgeEmpty, pressed && { opacity: 0.7 }]}
+          >
             <MaterialIcons name="event" size={14} color={Colors.textMuted} />
-            <Text style={[styles.dateText, { color: Colors.textMuted }]}>تاریخ نامشخص</Text>
-          </View>
+            <Text style={[styles.dateText, { color: Colors.textMuted }]}>تنظیم تاریخ شمسی</Text>
+          </Pressable>
         )}
       </View>
 
@@ -129,9 +137,12 @@ function EntryCard({ entry, onDelete, onEdit }: Props) {
             <View style={[styles.fieldChip, { backgroundColor: Colors.nationalLight }]}>
               <MaterialIcons name="credit-card" size={14} color={Colors.national} />
               <View style={styles.fieldTexts}>
-                <Text style={[styles.fieldLabel, { color: Colors.national }]}>کد ملی</Text>
+                <Text style={[styles.fieldLabel, { color: Colors.national }]}>
+                  {entry.isLegal ? 'شناسه ملی' : 'کد ملی'}
+                </Text>
                 <Text style={[styles.fieldValue, { color: Colors.national }]}>
                   {entry.nationalCode}
+                  {entry.isLegal ? '  ·  حقوقی' : ''}
                 </Text>
               </View>
             </View>

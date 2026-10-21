@@ -13,7 +13,9 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, FontSize, Shadow } from '@/constants/theme';
+import ShamsiDatePicker from '@/components/ShamsiDatePicker';
 import type { Entry } from '@/hooks/useEntries';
+import { sanitizeNationalCode } from '@/services/extractionService';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
@@ -22,6 +24,7 @@ interface Props {
   entry: Entry | null;
   onClose: () => void;
   onSave: (id: string, changes: Partial<Entry>) => void;
+  startOnDate?: boolean;
 }
 
 interface FieldConfig {
@@ -79,7 +82,7 @@ const FIELDS: FieldConfig[] = [
   },
   {
     key: 'nationalCode',
-    label: 'کد ملی (۱۰ رقم)',
+    label: 'کد ملی',
     icon: 'credit-card',
     color: Colors.national,
     bg: Colors.nationalLight,
@@ -88,8 +91,10 @@ const FIELDS: FieldConfig[] = [
   },
 ];
 
-export default function EditEntryModal({ visible, entry, onClose, onSave }: Props) {
+export default function EditEntryModal({ visible, entry, onClose, onSave, startOnDate }: Props) {
   const [form, setForm] = useState<Record<string, string>>({});
+  const [isLegal, setIsLegal] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
     if (entry) {
@@ -98,17 +103,58 @@ export default function EditEntryModal({ visible, entry, onClose, onSave }: Prop
         initial[f.key] = (entry[f.key] as string | null) ?? '';
       });
       setForm(initial);
+      const code = (entry.nationalCode ?? '').replace(/\D/g, '');
+      setIsLegal(!!entry.isLegal || code.length === 11);
     }
   }, [entry]);
 
+  useEffect(() => {
+    if (!visible) {
+      setDatePickerOpen(false);
+      return;
+    }
+    if (startOnDate) setDatePickerOpen(true);
+  }, [visible, startOnDate, entry]);
+
+  const applyLegal = (next: boolean) => {
+    setIsLegal(next);
+    setForm((prev) => ({
+      ...prev,
+      nationalCode: sanitizeNationalCode(prev.nationalCode ?? '', next),
+    }));
+  };
+
+  const onNationalChange = (value: string) => {
+    const digits = sanitizeNationalCode(value, true);
+    if (!isLegal && digits.length > 10) {
+      setIsLegal(true);
+      setForm((prev) => ({ ...prev, nationalCode: digits }));
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      nationalCode: sanitizeNationalCode(value, isLegal),
+    }));
+  };
+
   const handleSave = () => {
     if (!entry) return;
-    const changes: Partial<Entry> = {};
+    const changes: Partial<Entry> = { isLegal };
     FIELDS.forEach((f) => {
-      const val = form[f.key]?.trim() || null;
-      (changes as Record<string, string | null>)[f.key] = val;
+      const raw = form[f.key]?.trim() || '';
+      const val =
+        f.key === 'nationalCode' ? sanitizeNationalCode(raw, isLegal) || null : raw || null;
+      (changes as Record<string, string | null | boolean>)[f.key] = val;
     });
     onSave(entry.id, changes);
+    onClose();
+  };
+
+  const closePickerOrModal = () => {
+    if (datePickerOpen) {
+      setDatePickerOpen(false);
+      return;
+    }
     onClose();
   };
 
@@ -117,36 +163,114 @@ export default function EditEntryModal({ visible, entry, onClose, onSave }: Prop
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={closePickerOrModal}
     >
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Pressable style={styles.backdrop} onPress={closePickerOrModal} />
 
         <View style={styles.sheet}>
           <View style={styles.handle} />
 
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>ویرایش آیتم</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={({ pressed }) => (pressed ? { opacity: 0.6 } : {})}>
-              <MaterialIcons name="close" size={24} color={Colors.textSecondary} />
+            <Text style={styles.title}>{datePickerOpen ? 'انتخاب تاریخ شمسی' : 'ویرایش آیتم'}</Text>
+            <Pressable
+              onPress={closePickerOrModal}
+              hitSlop={8}
+              style={({ pressed }) => (pressed ? { opacity: 0.6 } : {})}
+            >
+              <MaterialIcons
+                name={datePickerOpen ? 'arrow-forward' : 'close'}
+                size={24}
+                color={Colors.textSecondary}
+              />
             </Pressable>
           </View>
 
+          {datePickerOpen ? (
+            <ShamsiDatePicker
+              value={form['date'] ?? ''}
+              onConfirm={(date) => {
+                setForm((prev) => ({ ...prev, date }));
+                setDatePickerOpen(false);
+                if (startOnDate && entry) {
+                  onSave(entry.id, { date });
+                  onClose();
+                }
+              }}
+              onClear={() => {
+                setForm((prev) => ({ ...prev, date: '' }));
+                setDatePickerOpen(false);
+                if (startOnDate && entry) {
+                  onSave(entry.id, { date: null });
+                  onClose();
+                }
+              }}
+            />
+          ) : (
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {FIELDS.map((field) => (
+            {FIELDS.map((field) => {
+              const label =
+                field.key === 'nationalCode'
+                  ? isLegal
+                    ? 'شناسه ملی (۱۱ رقم)'
+                    : 'کد ملی (۱۰ رقم)'
+                  : field.label;
+              return (
               <View key={field.key} style={styles.fieldWrap}>
                 <View style={styles.fieldLabelRow}>
                   <MaterialIcons name={field.icon} size={15} color={field.color} />
-                  <Text style={[styles.fieldLabel, { color: field.color }]}>{field.label}</Text>
+                  <Text style={[styles.fieldLabel, { color: field.color }]}>{label}</Text>
+                  {field.key === 'nationalCode' ? (
+                    <Pressable
+                      onPress={() => applyLegal(!isLegal)}
+                      style={styles.legalToggle}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: isLegal }}
+                    >
+                      <Text style={[styles.legalToggleText, { color: isLegal ? field.color : Colors.textMuted }]}>
+                        حقوقی
+                      </Text>
+                      <MaterialIcons
+                        name={isLegal ? 'check-box' : 'check-box-outline-blank'}
+                        size={18}
+                        color={isLegal ? field.color : Colors.textMuted}
+                      />
+                    </Pressable>
+                  ) : null}
                 </View>
+                {field.key === 'date' ? (
+                  <Pressable
+                    onPress={() => setDatePickerOpen(true)}
+                    style={[
+                      styles.input,
+                      styles.dateField,
+                      { borderColor: form[field.key] ? field.color + '55' : Colors.border },
+                      form[field.key] ? { backgroundColor: field.bg } : {},
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="calendar-today"
+                      size={18}
+                      color={form[field.key] ? field.color : Colors.textMuted}
+                    />
+                    <Text
+                      style={[
+                        styles.dateFieldText,
+                        { color: form[field.key] ? Colors.textPrimary : Colors.textMuted },
+                      ]}
+                    >
+                      {form[field.key]?.trim() || 'برای تنظیم تاریخ بزنید'}
+                    </Text>
+                  </Pressable>
+                ) : (
                 <TextInput
                   style={[
                     styles.input,
@@ -154,15 +278,23 @@ export default function EditEntryModal({ visible, entry, onClose, onSave }: Prop
                     form[field.key] ? { backgroundColor: field.bg } : {},
                   ]}
                   value={form[field.key] ?? ''}
-                  onChangeText={(v) => setForm((prev) => ({ ...prev, [field.key]: v }))}
-                  placeholder={field.placeholder}
+                  onChangeText={
+                    field.key === 'nationalCode'
+                      ? onNationalChange
+                      : (v) => setForm((prev) => ({ ...prev, [field.key]: v }))
+                  }
+                  placeholder={
+                    field.key === 'nationalCode' ? (isLegal ? '12345678901' : field.placeholder) : field.placeholder
+                  }
                   placeholderTextColor={Colors.textMuted}
                   textAlign="right"
                   keyboardType={field.keyboardType ?? 'default'}
+                  maxLength={field.key === 'nationalCode' ? (isLegal ? 11 : 10) : undefined}
                   returnKeyType="next"
                 />
+                )}
               </View>
-            ))}
+            );})}
 
             <Pressable
               style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}
@@ -174,6 +306,7 @@ export default function EditEntryModal({ visible, entry, onClose, onSave }: Prop
 
             <View style={{ height: 40 }} />
           </ScrollView>
+          )}
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -233,6 +366,26 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: FontSize.sm,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+  },
+  legalToggle: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 2,
+  },
+  legalToggleText: {
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+  },
+  dateField: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dateFieldText: {
+    fontSize: FontSize.md,
     fontWeight: '600',
   },
   input: {

@@ -41,13 +41,25 @@ export default function HomeScreen() {
   const { entries, loading, addEntry, updateEntry, deleteEntry } = useEntries();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
+  const [startOnDate, setStartOnDate] = useState(false);
 
   const handleSave = async (data: ExtractedData) => {
     await addEntry(data);
   };
 
   const handleEdit = (entry: Entry) => {
+    setStartOnDate(false);
     setEditingEntry(entry);
+  };
+
+  const handleSetDate = (entry: Entry) => {
+    setStartOnDate(true);
+    setEditingEntry(entry);
+  };
+
+  const closeEditor = () => {
+    setEditingEntry(null);
+    setStartOnDate(false);
   };
 
   const handleUpdate = async (id: string, changes: Partial<Entry>) => {
@@ -92,6 +104,7 @@ export default function HomeScreen() {
         entry={item.entry}
         onDelete={deleteEntry}
         onEdit={handleEdit}
+        onSetDate={handleSetDate}
       />
     );
   };
@@ -167,7 +180,8 @@ export default function HomeScreen() {
       <EditEntryModal
         visible={editingEntry !== null}
         entry={editingEntry}
-        onClose={() => setEditingEntry(null)}
+        startOnDate={startOnDate}
+        onClose={closeEditor}
         onSave={handleUpdate}
       />
     </SafeAreaView>

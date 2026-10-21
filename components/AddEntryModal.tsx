@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, FontSize, Shadow } from '@/constants/theme';
-import { extractData, ExtractedData } from '@/services/extractionService';
+import ShamsiDatePicker from '@/components/ShamsiDatePicker';
+import { extractData, ExtractedData, sanitizeNationalCode } from '@/services/extractionService';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
@@ -79,7 +80,7 @@ const FIELDS: FieldConfig[] = [
   },
   {
     key: 'nationalCode',
-    label: 'کد ملی (۱۰ رقم)',
+    label: 'کد ملی',
     icon: 'credit-card',
     color: Colors.national,
     bg: Colors.nationalLight,
@@ -93,6 +94,8 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
   const [extracted, setExtracted] = useState<ExtractedData | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [processing, setProcessing] = useState(false);
+  const [isLegal, setIsLegal] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -109,7 +112,7 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
     if (!text.trim()) return;
     setProcessing(true);
     setTimeout(() => {
-      const result = extractData(text.trim());
+      const result = extractData(text.trim(), { legal: isLegal });
       setExtracted(result);
       setProcessing(false);
     }, 300);
@@ -124,7 +127,8 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
       amount: editForm['amount']?.trim() || null,
       sayyadId: editForm['sayyadId']?.trim() || null,
       name: editForm['name']?.trim() || null,
-      nationalCode: editForm['nationalCode']?.trim() || null,
+      nationalCode: sanitizeNationalCode(editForm['nationalCode'] ?? '', isLegal) || null,
+      isLegal,
     };
     onSave(finalData);
     handleClose();
@@ -135,7 +139,31 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
     setExtracted(null);
     setEditForm({});
     setProcessing(false);
+    setIsLegal(false);
+    setDatePickerOpen(false);
     onClose();
+  };
+
+  const applyLegal = (next: boolean) => {
+    setIsLegal(next);
+    setEditForm((form) => {
+      const fromText = text.trim() ? extractData(text.trim(), { legal: next }).nationalCode : null;
+      if (fromText) return { ...form, nationalCode: fromText };
+      return { ...form, nationalCode: sanitizeNationalCode(form.nationalCode ?? '', next) };
+    });
+  };
+
+  const onNationalChange = (value: string) => {
+    const digits = sanitizeNationalCode(value, true);
+    if (!isLegal && digits.length > 10) {
+      setIsLegal(true);
+      setEditForm((prev) => ({ ...prev, nationalCode: digits }));
+      return;
+    }
+    setEditForm((prev) => ({
+      ...prev,
+      nationalCode: sanitizeNationalCode(value, isLegal),
+    }));
   };
 
   const foundCount = FIELDS.filter((f) => !!editForm[f.key]?.trim()).length;
@@ -158,16 +186,35 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
 
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>افزودن آیتم جدید</Text>
+            <Text style={styles.title}>
+              {datePickerOpen ? 'انتخاب تاریخ شمسی' : 'افزودن آیتم جدید'}
+            </Text>
             <Pressable
-              onPress={handleClose}
+              onPress={datePickerOpen ? () => setDatePickerOpen(false) : handleClose}
               hitSlop={8}
               style={({ pressed }) => [pressed && { opacity: 0.6 }]}
             >
-              <MaterialIcons name="close" size={24} color={Colors.textSecondary} />
+              <MaterialIcons
+                name={datePickerOpen ? 'arrow-forward' : 'close'}
+                size={24}
+                color={Colors.textSecondary}
+              />
             </Pressable>
           </View>
 
+          {datePickerOpen ? (
+            <ShamsiDatePicker
+              value={editForm['date'] ?? ''}
+              onConfirm={(date) => {
+                setEditForm((prev) => ({ ...prev, date }));
+                setDatePickerOpen(false);
+              }}
+              onClear={() => {
+                setEditForm((prev) => ({ ...prev, date: '' }));
+                setDatePickerOpen(false);
+              }}
+            />
+          ) : (
           <ScrollView
             style={styles.scroll}
             showsVerticalScrollIndicator={false}
@@ -252,6 +299,26 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
                 {/* Editable Fields */}
                 {FIELDS.map((field) => {
                   const hasValue = !!editForm[field.key]?.trim();
+                  const label =
+                    field.key === 'nationalCode'
+                      ? isLegal
+                        ? 'شناسه ملی (۱۱ رقم)'
+                        : 'کد ملی (۱۰ رقم)'
+                      : field.label;
+                  const inputStyle = [
+                    styles.fieldInput,
+                    hasValue
+                      ? {
+                          borderColor: field.color + '66',
+                          backgroundColor: field.bg,
+                          color: field.color,
+                        }
+                      : {
+                          borderColor: Colors.border,
+                          backgroundColor: Colors.background,
+                          color: Colors.textMuted,
+                        },
+                  ];
                   return (
                     <View key={field.key} style={styles.fieldWrap}>
                       <View style={styles.fieldLabelRow}>
@@ -266,9 +333,30 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
                             { color: hasValue ? field.color : Colors.textMuted },
                           ]}
                         >
-                          {field.label}
+                          {label}
                         </Text>
-                        {hasValue ? (
+                        {field.key === 'nationalCode' ? (
+                          <Pressable
+                            onPress={() => applyLegal(!isLegal)}
+                            style={styles.legalToggle}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: isLegal }}
+                          >
+                            <Text
+                              style={[
+                                styles.legalToggleText,
+                                { color: isLegal ? field.color : Colors.textMuted },
+                              ]}
+                            >
+                              حقوقی
+                            </Text>
+                            <MaterialIcons
+                              name={isLegal ? 'check-box' : 'check-box-outline-blank'}
+                              size={18}
+                              color={isLegal ? field.color : Colors.textMuted}
+                            />
+                          </Pressable>
+                        ) : hasValue ? (
                           <MaterialIcons
                             name="check-circle"
                             size={13}
@@ -277,31 +365,48 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
                           />
                         ) : null}
                       </View>
-                      <TextInput
-                        style={[
-                          styles.fieldInput,
-                          hasValue
-                            ? {
-                                borderColor: field.color + '66',
-                                backgroundColor: field.bg,
-                                color: field.color,
-                              }
-                            : {
-                                borderColor: Colors.border,
-                                backgroundColor: Colors.background,
-                                color: Colors.textMuted,
-                              },
-                        ]}
-                        value={editForm[field.key] ?? ''}
-                        onChangeText={(v) =>
-                          setEditForm((prev) => ({ ...prev, [field.key]: v }))
-                        }
-                        placeholder={field.placeholder}
-                        placeholderTextColor={Colors.textMuted}
-                        textAlign="right"
-                        keyboardType={field.keyboardType ?? 'default'}
-                        returnKeyType="next"
-                      />
+                      {field.key === 'date' ? (
+                        <Pressable
+                          onPress={() => setDatePickerOpen(true)}
+                          style={[inputStyle, styles.dateField]}
+                        >
+                          <MaterialIcons
+                            name="calendar-today"
+                            size={16}
+                            color={hasValue ? field.color : Colors.textMuted}
+                          />
+                          <Text
+                            style={[
+                              styles.dateFieldText,
+                              { color: hasValue ? field.color : Colors.textMuted },
+                            ]}
+                          >
+                            {hasValue ? editForm[field.key] : 'برای تنظیم تاریخ بزنید'}
+                          </Text>
+                        </Pressable>
+                      ) : (
+                        <TextInput
+                          style={inputStyle}
+                          value={editForm[field.key] ?? ''}
+                          onChangeText={
+                            field.key === 'nationalCode'
+                              ? onNationalChange
+                              : (v) => setEditForm((prev) => ({ ...prev, [field.key]: v }))
+                          }
+                          placeholder={
+                            field.key === 'nationalCode'
+                              ? isLegal
+                                ? '12345678901'
+                                : field.placeholder
+                              : field.placeholder
+                          }
+                          placeholderTextColor={Colors.textMuted}
+                          textAlign="right"
+                          keyboardType={field.keyboardType ?? 'default'}
+                          maxLength={field.key === 'nationalCode' ? (isLegal ? 11 : 10) : undefined}
+                          returnKeyType="next"
+                        />
+                      )}
                     </View>
                   );
                 })}
@@ -319,6 +424,7 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
 
             <View style={{ height: 48 }} />
           </ScrollView>
+          )}
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -456,6 +562,24 @@ const styles = StyleSheet.create({
   },
   fieldCheck: {
     marginLeft: 2,
+  },
+  legalToggle: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 2,
+  },
+  legalToggleText: {
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+  },
+  dateField: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dateFieldText: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
   },
   fieldInput: {
     borderRadius: BorderRadius.md,
