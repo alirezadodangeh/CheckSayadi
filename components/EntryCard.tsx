@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Colors, BorderRadius, FontSize, Shadow } from '@/constants/theme';
-import { useConfirm } from '@/components/ConfirmDialog';
+import { useAlert } from '@/template';
 import type { Entry } from '@/hooks/useEntries';
 import { formatAmount, toEnglishNumeric } from '@/services/extractionService';
 
@@ -20,16 +20,13 @@ interface Props {
 }
 
 function EntryCard({ entry, onDelete, onEdit, onSetDate }: Props) {
-  const confirm = useConfirm();
+  const { showAlert } = useAlert();
 
   const handleDelete = () => {
-    void confirm({
-      title: 'حذف',
-      message: 'این آیتم حذف شود؟',
-      confirmText: 'حذف',
-    }).then((accepted) => {
-      if (accepted) onDelete(entry.id);
-    });
+    showAlert('حذف آیتم', 'این آیتم حذف شود؟', [
+      { text: 'انصراف', style: 'cancel' },
+      { text: 'حذف', style: 'destructive', onPress: () => onDelete(entry.id) },
+    ]);
   };
 
   const hasStructured =
