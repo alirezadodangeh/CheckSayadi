@@ -79,9 +79,23 @@ jobs:
         env:
           CI: "1"
 
+      - name: Raise Gradle memory
+        shell: bash
+        run: |
+          file="android/gradle.properties"
+          args='org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError'
+          if grep -q '^org.gradle.jvmargs=' "$file"; then
+            sed -i "s|^org.gradle.jvmargs=.*|$args|" "$file"
+          else
+            echo "$args" >> "$file"
+          fi
+          echo 'org.gradle.workers.max=2' >> "$file"
+
       - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease
+        env:
+          GRADLE_OPTS: "-Xmx4g -XX:MaxMetaspaceSize=1g"
 
       - name: Rename APK
         run: |
