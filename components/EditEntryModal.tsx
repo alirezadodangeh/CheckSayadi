@@ -89,7 +89,7 @@ const FIELDS: FieldConfig[] = [
   },
   {
     key: 'name',
-    label: 'نام',
+    label: 'عنوان',
     icon: 'person-outline',
     color: Colors.primary,
     bg: Colors.accent,

@@ -226,7 +226,7 @@ export default function HomeScreen() {
                 style={styles.searchInput}
                 value={query}
                 onChangeText={setQuery}
-                placeholder="جستجو نام، مبلغ، صیاد، توضیحات..."
+                placeholder="جستجو عنوان، مبلغ، صیاد، توضیحات..."
                 placeholderTextColor={Colors.textMuted}
                 textAlign="right"
               />

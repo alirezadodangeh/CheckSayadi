@@ -74,7 +74,7 @@ function EntryCard({ entry, onDelete, onEdit, onSetDate }: Props) {
       <View style={styles.top}>
         <View style={styles.identity}>
           <Text style={styles.name} numberOfLines={1}>
-            {entry.name?.trim() || 'بدون نام'}
+            {entry.name?.trim() || 'بدون عنوان'}
           </Text>
           {entry.amount ? (
             <Text style={styles.amount} numberOfLines={1}>
