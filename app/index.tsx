@@ -179,13 +179,8 @@ export default function HomeScreen() {
       {/* Header */}
       <View style={styles.appHeader}>
         <View style={styles.headerLeft}>
-          <View style={styles.headerIconWrap}>
-            <MaterialCommunityIcons name="bank-check" size={22} color="#fff" />
-          </View>
-          <View>
-            <Text style={styles.appTitle}>استخراج اسناد</Text>
-            <Text style={styles.appSubtitle}>مرتب‌شده بر اساس تاریخ شمسی</Text>
-          </View>
+          <MaterialCommunityIcons name="bank-check" size={18} color="#fff" />
+          <Text style={styles.appTitle}>استخراج اسناد</Text>
         </View>
         <View style={styles.countBadge}>
           <Text style={styles.countText}>
@@ -312,45 +307,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: Colors.primaryDark,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.sm,
   },
   headerLeft: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  headerIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.md,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
   },
   appTitle: {
-    fontSize: FontSize.lg,
-    fontWeight: '800',
+    fontSize: FontSize.sm,
+    fontWeight: '700',
     color: '#fff',
     textAlign: 'right',
   },
-  appSubtitle: {
-    fontSize: FontSize.xs,
-    color: 'rgba(255,255,255,0.65)',
-    textAlign: 'right',
-    marginTop: 2,
-  },
   countBadge: {
-    minWidth: 36,
-    height: 36,
+    minWidth: 24,
+    height: 22,
     borderRadius: BorderRadius.full,
     backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: 7,
   },
   countText: {
-    fontSize: FontSize.md,
+    fontSize: FontSize.xs,
     fontWeight: '700',
     color: '#fff',
   },
