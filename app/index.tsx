@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   TextInput,
 } from 'react-native';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
@@ -182,10 +183,19 @@ export default function HomeScreen() {
           <MaterialCommunityIcons name="bank-check" size={18} color="#fff" />
           <Text style={styles.appTitle}>استخراج اسناد</Text>
         </View>
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>
-            {filtering ? `${filteredEntries.length}/${entries.length}` : entries.length}
-          </Text>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => router.push('/settings')}
+            hitSlop={8}
+            style={styles.headerIconBtn}
+          >
+            <MaterialIcons name="settings" size={20} color="#fff" />
+          </Pressable>
+          <View style={styles.countBadge}>
+            <Text style={styles.countText}>
+              {filtering ? `${filteredEntries.length}/${entries.length}` : entries.length}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -320,6 +330,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
     textAlign: 'right',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerIconBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   countBadge: {
     minWidth: 24,
