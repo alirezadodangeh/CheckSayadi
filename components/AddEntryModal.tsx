@@ -12,10 +12,10 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, FontSize, Shadow } from '@/constants/theme';
 import ShamsiDatePicker from '@/components/ShamsiDatePicker';
-import { extractData, ExtractedData, sanitizeNationalCode } from '@/services/extractionService';
+import { extractData, ExtractedData, formatAmount, sanitizeNationalCode, toEnglishNumeric } from '@/services/extractionService';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
@@ -102,7 +102,8 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
     if (extracted) {
       const form: Record<string, string> = {};
       FIELDS.forEach((f) => {
-        form[f.key] = (extracted[f.key] as string | null) ?? '';
+        const value = (extracted[f.key] as string | null) ?? '';
+        form[f.key] = f.key === 'amount' ? formatAmount(value) : value;
       });
       setEditForm(form);
     }
@@ -122,10 +123,10 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
     if (!extracted) return;
     const finalData: ExtractedData = {
       rawText: extracted.rawText,
-      date: editForm['date']?.trim() || null,
-      checkSerial: editForm['checkSerial']?.trim() || null,
-      amount: editForm['amount']?.trim() || null,
-      sayyadId: editForm['sayyadId']?.trim() || null,
+      date: toEnglishNumeric(editForm['date'] ?? '').trim() || null,
+      checkSerial: toEnglishNumeric(editForm['checkSerial'] ?? '').trim() || null,
+      amount: formatAmount(editForm['amount'] ?? '') || null,
+      sayyadId: toEnglishNumeric(editForm['sayyadId'] ?? '').trim() || null,
       name: editForm['name']?.trim() || null,
       nationalCode: sanitizeNationalCode(editForm['nationalCode'] ?? '', isLegal) || null,
       isLegal,
@@ -322,14 +323,23 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
                   return (
                     <View key={field.key} style={styles.fieldWrap}>
                       <View style={styles.fieldLabelRow}>
-                        <MaterialIcons
-                          name={field.icon}
-                          size={14}
-                          color={hasValue ? field.color : Colors.textMuted}
-                        />
+                        {field.key === 'checkSerial' ? (
+                          <MaterialCommunityIcons
+                            name="bank-check"
+                            size={14}
+                            color={hasValue ? field.color : Colors.textMuted}
+                          />
+                        ) : (
+                          <MaterialIcons
+                            name={field.icon}
+                            size={14}
+                            color={hasValue ? field.color : Colors.textMuted}
+                          />
+                        )}
                         <Text
                           style={[
                             styles.fieldLabel,
+                            field.key === 'name' ? styles.rtlInput : styles.ltrInput,
                             { color: hasValue ? field.color : Colors.textMuted },
                           ]}
                         >
@@ -378,20 +388,29 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
                           <Text
                             style={[
                               styles.dateFieldText,
+                              hasValue ? styles.ltrInput : styles.rtlInput,
                               { color: hasValue ? field.color : Colors.textMuted },
                             ]}
                           >
-                            {hasValue ? editForm[field.key] : 'برای تنظیم تاریخ بزنید'}
+                            {hasValue ? toEnglishNumeric(editForm[field.key] ?? '') : 'برای تنظیم تاریخ بزنید'}
                           </Text>
                         </Pressable>
                       ) : (
                         <TextInput
-                          style={inputStyle}
                           value={editForm[field.key] ?? ''}
                           onChangeText={
                             field.key === 'nationalCode'
                               ? onNationalChange
-                              : (v) => setEditForm((prev) => ({ ...prev, [field.key]: v }))
+                              : (v) =>
+                                  setEditForm((prev) => ({
+                                    ...prev,
+                                    [field.key]:
+                                      field.key === 'name'
+                                        ? v
+                                        : field.key === 'amount'
+                                          ? formatAmount(v)
+                                          : toEnglishNumeric(v),
+                                  }))
                           }
                           placeholder={
                             field.key === 'nationalCode'
@@ -401,7 +420,8 @@ export default function AddEntryModal({ visible, onClose, onSave }: Props) {
                               : field.placeholder
                           }
                           placeholderTextColor={Colors.textMuted}
-                          textAlign="right"
+                          textAlign={field.key === 'name' ? 'right' : 'left'}
+                          style={[inputStyle, field.key === 'name' ? styles.rtlInput : styles.ltrInput]}
                           keyboardType={field.keyboardType ?? 'default'}
                           maxLength={field.key === 'nationalCode' ? (isLegal ? 11 : 10) : undefined}
                           returnKeyType="next"
@@ -578,8 +598,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   dateFieldText: {
+    flex: 1,
     fontSize: FontSize.sm,
     fontWeight: '600',
+  },
+  ltrInput: {
+    textAlign: 'left',
+    writingDirection: 'ltr',
+  },
+  rtlInput: {
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   fieldInput: {
     borderRadius: BorderRadius.md,

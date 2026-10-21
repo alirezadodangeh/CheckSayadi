@@ -9,6 +9,7 @@ import {
   parseShamsi,
   todayJalali,
 } from '@/services/jalali';
+import { toEnglishNumeric } from '@/services/extractionService';
 
 interface Props {
   value: string;
@@ -36,7 +37,7 @@ export default function ShamsiDatePicker({ value, onConfirm, onClear }: Props) {
   };
 
   const setYearFromText = (text: string) => {
-    const digits = text.replace(/\D/g, '').slice(0, 4);
+    const digits = toEnglishNumeric(text).replace(/\D/g, '').slice(0, 4);
     setYearText(digits);
     if (digits.length !== 4) return;
     const next = parseInt(digits, 10);
@@ -160,6 +161,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.primary,
     textAlign: 'center',
+    writingDirection: 'ltr',
     marginBottom: Spacing.xs,
   },
   yearRow: {
@@ -191,6 +193,8 @@ const styles = StyleSheet.create({
     fontSize: FontSize.lg,
     fontWeight: '700',
     color: Colors.primaryDark,
+    textAlign: 'center',
+    writingDirection: 'ltr',
   },
   monthGrid: {
     flexDirection: 'row-reverse',
@@ -242,6 +246,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontWeight: '600',
     color: Colors.textPrimary,
+    writingDirection: 'ltr',
   },
   dayTextSelected: {
     color: '#fff',

@@ -7,21 +7,16 @@ import {
   Pressable,
   Alert,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { Colors, Spacing, BorderRadius, FontSize, Shadow } from '@/constants/theme';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { Colors, BorderRadius, FontSize, Shadow } from '@/constants/theme';
 import type { Entry } from '@/hooks/useEntries';
+import { formatAmount, toEnglishNumeric } from '@/services/extractionService';
 
 interface Props {
   entry: Entry;
   onDelete: (id: string) => void;
   onEdit: (entry: Entry) => void;
   onSetDate: (entry: Entry) => void;
-}
-
-function formatAmount(amount: string): string {
-  const num = parseInt(amount.replace(/,/g, ''), 10);
-  if (isNaN(num)) return amount;
-  return num.toLocaleString();
 }
 
 function EntryCard({ entry, onDelete, onEdit, onSetDate }: Props) {
@@ -32,128 +27,129 @@ function EntryCard({ entry, onDelete, onEdit, onSetDate }: Props) {
     ]);
   };
 
-  const hasContent =
-    entry.date ||
-    entry.amount ||
-    entry.sayyadId ||
-    entry.name ||
-    entry.nationalCode ||
-    entry.checkSerial;
+  const hasStructured =
+    !!entry.amount ||
+    !!entry.sayyadId ||
+    !!entry.name ||
+    !!entry.nationalCode ||
+    !!entry.checkSerial;
+
+  const meta = [
+    entry.sayyadId ? { key: 'sayyad', label: `صیاد ${entry.sayyadId}`, color: Colors.sayyad } : null,
+    entry.checkSerial ? { key: 'serial', label: `سریال ${entry.checkSerial}`, color: Colors.check } : null,
+    entry.nationalCode
+      ? {
+          key: 'national',
+          label: `${entry.isLegal ? 'شناسه' : 'کد'} ${entry.nationalCode}`,
+          color: Colors.national,
+        }
+      : null,
+  ].filter((item): item is { key: string; label: string; color: string } => item !== null);
+
+  const flags = [
+    entry.guarantee ? { key: 'guarantee', label: 'ضمانت', color: Colors.warning, bg: Colors.warningLight } : null,
+    entry.passed ? { key: 'passed', label: 'پاس شد', color: Colors.success, bg: Colors.successLight } : null,
+    entry.returned ? { key: 'returned', label: 'برگشت خورده', color: Colors.error, bg: Colors.errorLight } : null,
+  ].filter((item): item is { key: string; label: string; color: string; bg: string } => item !== null);
 
   return (
     <View style={styles.card}>
-      {/* Header Row */}
-      <View style={styles.headerRow}>
-        <View style={styles.headerActions}>
-          <Pressable
-            style={({ pressed }) => [styles.actionBtn, styles.editBtn, pressed && { opacity: 0.6 }]}
-            onPress={() => onEdit(entry)}
-            hitSlop={8}
-          >
-            <MaterialIcons name="edit" size={16} color={Colors.primary} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.actionBtn, styles.deleteBtn, pressed && { opacity: 0.6 }]}
-            onPress={handleDelete}
-            hitSlop={8}
-          >
-            <MaterialIcons name="delete-outline" size={16} color={Colors.error} />
-          </Pressable>
-        </View>
-
-        {entry.date ? (
-          <Pressable
-            onPress={() => onSetDate(entry)}
-            style={({ pressed }) => [styles.dateBadge, pressed && { opacity: 0.7 }]}
-          >
-            <MaterialIcons name="event" size={14} color={Colors.primary} />
-            <Text style={styles.dateText}>{entry.date}</Text>
-            <MaterialIcons name="edit" size={12} color={Colors.primary} />
-          </Pressable>
-        ) : (
-          <Pressable
-            onPress={() => onSetDate(entry)}
-            style={({ pressed }) => [styles.dateBadge, styles.dateBadgeEmpty, pressed && { opacity: 0.7 }]}
-          >
-            <MaterialIcons name="event" size={14} color={Colors.textMuted} />
-            <Text style={[styles.dateText, { color: Colors.textMuted }]}>تنظیم تاریخ شمسی</Text>
-          </Pressable>
-        )}
+      <View style={[styles.dateBanner, !entry.date && styles.dateBannerEmpty]}>
+        <MaterialIcons
+          name="event"
+          size={16}
+          color={entry.date ? Colors.primary : Colors.warning}
+        />
+        <Text style={[styles.dateText, !entry.date && styles.dateTextEmpty]}>
+          {entry.date ? toEnglishNumeric(entry.date) : 'بدون تاریخ'}
+        </Text>
+        {entry.color ? <View style={[styles.colorDot, { backgroundColor: entry.color }]} /> : null}
       </View>
 
-      {!hasContent ? (
-        <Text style={styles.noDataText}>اطلاعاتی استخراج نشد</Text>
-      ) : (
-        <View style={styles.fieldsGrid}>
-          {entry.checkSerial ? (
-            <View style={[styles.fieldChip, { backgroundColor: Colors.checkLight }]}>
-              <MaterialIcons name="receipt-long" size={14} color={Colors.check} />
-              <View style={styles.fieldTexts}>
-                <Text style={[styles.fieldLabel, { color: Colors.check }]}>سریال چک</Text>
-                <Text style={[styles.fieldValue, { color: Colors.check }]}>
-                  {entry.checkSerial}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-
-          {entry.sayyadId ? (
-            <View style={[styles.fieldChip, { backgroundColor: Colors.sayyadLight }]}>
-              <MaterialIcons name="fingerprint" size={14} color={Colors.sayyad} />
-              <View style={styles.fieldTexts}>
-                <Text style={[styles.fieldLabel, { color: Colors.sayyad }]}>شناسه صیاد</Text>
-                <Text style={[styles.fieldValue, { color: Colors.sayyad }]} numberOfLines={1}>
-                  {entry.sayyadId}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-
+      <View style={styles.top}>
+        <View style={styles.identity}>
+          <Text style={styles.name} numberOfLines={1}>
+            {entry.name?.trim() || 'بدون نام'}
+          </Text>
           {entry.amount ? (
-            <View style={[styles.fieldChip, { backgroundColor: Colors.amountLight }]}>
-              <MaterialIcons name="payments" size={14} color={Colors.amount} />
-              <View style={styles.fieldTexts}>
-                <Text style={[styles.fieldLabel, { color: Colors.amount }]}>مبلغ</Text>
-                <Text style={[styles.fieldValue, { color: Colors.amount }]}>
-                  {formatAmount(entry.amount)} ریال
-                </Text>
-              </View>
-            </View>
-          ) : null}
-
-          {entry.name ? (
-            <View style={[styles.fieldChip, { backgroundColor: Colors.accent }]}>
-              <MaterialIcons name="person-outline" size={14} color={Colors.primary} />
-              <View style={styles.fieldTexts}>
-                <Text style={[styles.fieldLabel, { color: Colors.primary }]}>نام</Text>
-                <Text style={[styles.fieldValue, { color: Colors.primaryDark }]}>
-                  {entry.name}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-
-          {entry.nationalCode ? (
-            <View style={[styles.fieldChip, { backgroundColor: Colors.nationalLight }]}>
-              <MaterialIcons name="credit-card" size={14} color={Colors.national} />
-              <View style={styles.fieldTexts}>
-                <Text style={[styles.fieldLabel, { color: Colors.national }]}>
-                  {entry.isLegal ? 'شناسه ملی' : 'کد ملی'}
-                </Text>
-                <Text style={[styles.fieldValue, { color: Colors.national }]}>
-                  {entry.nationalCode}
-                  {entry.isLegal ? '  ·  حقوقی' : ''}
-                </Text>
-              </View>
-            </View>
+            <Text style={styles.amount} numberOfLines={1}>
+              {formatAmount(entry.amount)}
+              <Text style={styles.currency}> ریال</Text>
+            </Text>
           ) : null}
         </View>
-      )}
+      </View>
 
-      {/* Raw text preview */}
-      <Text style={styles.rawPreview} numberOfLines={2}>
-        {entry.rawText}
-      </Text>
+      {meta.length > 0 ? (
+        <View style={styles.metaRow}>
+          {meta.map((item) => (
+            <View key={item.key} style={styles.meta}>
+              {item.key === 'serial' ? (
+                <MaterialCommunityIcons name="bank-check" size={12} color={item.color} />
+              ) : null}
+              <Text style={[styles.metaText, { color: item.color }]} numberOfLines={1}>
+                {item.label}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : !hasStructured ? (
+        <Text style={styles.noData} numberOfLines={1}>
+          {entry.rawText?.trim() || 'اطلاعاتی استخراج نشد'}
+        </Text>
+      ) : null}
+
+      {entry.forWhom?.trim() ? (
+        <Text style={styles.forWhom} numberOfLines={1}>
+          برای {entry.forWhom.trim()}
+        </Text>
+      ) : null}
+      {entry.description?.trim() ? (
+        <Text style={styles.note} numberOfLines={1}>
+          {entry.description.trim()}
+        </Text>
+      ) : null}
+      {flags.length > 0 ? (
+        <View style={styles.flagRow}>
+          {flags.map((flag) => (
+            <Text key={flag.key} style={[styles.flag, { color: flag.color, backgroundColor: flag.bg }]}>
+              {flag.label}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.actions}>
+        <Pressable
+          style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
+          onPress={() => onEdit(entry)}
+          hitSlop={6}
+        >
+          <MaterialIcons name="edit" size={15} color={Colors.primary} />
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.actionBtn,
+            !entry.date && styles.dateMissing,
+            pressed && styles.pressed,
+          ]}
+          onPress={() => onSetDate(entry)}
+          hitSlop={6}
+        >
+          <MaterialIcons
+            name="event"
+            size={15}
+            color={entry.date ? Colors.primary : Colors.textMuted}
+          />
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.actionBtn, styles.deleteBtn, pressed && styles.pressed]}
+          onPress={handleDelete}
+          hitSlop={6}
+        >
+          <MaterialIcons name="delete-outline" size={15} color={Colors.error} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -163,95 +159,150 @@ export default memo(EntryCard);
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.card,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.sm + 2,
-    ...Shadow.md,
+    borderRadius: BorderRadius.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginHorizontal: 12,
+    marginBottom: 6,
+    ...Shadow.sm,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: Colors.border,
   },
-  headerRow: {
+  colorDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  dateBanner: {
     flexDirection: 'row-reverse',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    gap: 6,
+    backgroundColor: Colors.accent,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginBottom: 6,
   },
-  headerActions: {
+  dateBannerEmpty: {
+    backgroundColor: Colors.warningLight,
+  },
+  dateText: {
+    flex: 1,
+    fontSize: FontSize.lg,
+    fontWeight: '800',
+    color: Colors.primary,
+    textAlign: 'right',
+    writingDirection: 'ltr',
+  },
+  dateTextEmpty: {
+    color: Colors.warning,
+    writingDirection: 'rtl',
+  },
+  forWhom: {
+    marginTop: 4,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textAlign: 'right',
+  },
+  note: {
+    marginTop: 2,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    textAlign: 'right',
+  },
+  flagRow: {
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 6,
+  },
+  flag: {
+    fontSize: 10,
+    fontWeight: '700',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  top: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 8,
+  },
+  identity: {
+    flex: 1,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    minWidth: 0,
+  },
+  name: {
+    flexShrink: 1,
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    textAlign: 'right',
+  },
+  amount: {
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+    color: Colors.amount,
+    writingDirection: 'ltr',
+  },
+  currency: {
+    fontSize: FontSize.xs,
+    fontWeight: '500',
+    color: Colors.amount,
+  },
+  actions: {
     flexDirection: 'row',
-    gap: Spacing.xs,
+    justifyContent: 'flex-start',
+    gap: 4,
+    marginTop: 6,
   },
   actionBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.sm,
+    width: 26,
+    height: 26,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  editBtn: {
     backgroundColor: Colors.accent,
+  },
+  dateMissing: {
+    backgroundColor: Colors.borderLight,
   },
   deleteBtn: {
     backgroundColor: Colors.errorLight,
   },
-  dateBadge: {
+  pressed: {
+    opacity: 0.6,
+  },
+  metaRow: {
     flexDirection: 'row-reverse',
-    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 4,
-    backgroundColor: Colors.accent,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    marginTop: 6,
   },
-  dateBadgeEmpty: {
-    backgroundColor: Colors.borderLight,
-  },
-  dateText: {
-    fontSize: FontSize.sm,
-    fontWeight: '600',
-    color: Colors.primary,
-    letterSpacing: 0.5,
-  },
-  fieldsGrid: {
-    gap: Spacing.xs,
-    marginBottom: Spacing.sm,
-  },
-  fieldChip: {
+  meta: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.sm + 2,
-    paddingVertical: Spacing.xs + 2,
-    gap: Spacing.xs,
+    gap: 3,
+    backgroundColor: Colors.background,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    maxWidth: '100%',
   },
-  fieldTexts: {
-    flex: 1,
-    alignItems: 'flex-end',
+  metaText: {
+    fontSize: 11,
+    fontWeight: '600',
+    flexShrink: 1,
   },
-  fieldLabel: {
-    fontSize: FontSize.xs,
-    fontWeight: '500',
-    opacity: 0.75,
-  },
-  fieldValue: {
-    fontSize: FontSize.sm,
-    fontWeight: '700',
-    marginTop: 1,
-  },
-  noDataText: {
-    fontSize: FontSize.sm,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    paddingVertical: Spacing.sm,
-    fontStyle: 'italic',
-  },
-  rawPreview: {
+  noData: {
+    marginTop: 4,
     fontSize: FontSize.xs,
     color: Colors.textMuted,
     textAlign: 'right',
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-    paddingTop: Spacing.xs,
-    lineHeight: 18,
   },
 });

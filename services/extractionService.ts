@@ -12,6 +12,18 @@ export interface Entry {
   checkSerial: string | null;
   rawText: string;
   createdAt: number;
+  /** توضیحات */
+  description?: string | null;
+  /** ضمانت */
+  guarantee?: boolean;
+  /** چه کسی */
+  forWhom?: string | null;
+  /** رنگ نشانه؛ در لیست به شکل دایره کوچک */
+  color?: string | null;
+  /** پاس شد */
+  passed?: boolean;
+  /** برگشت خورده */
+  returned?: boolean;
 }
 
 export interface ExtractedData {
@@ -31,6 +43,18 @@ export function normalizeDigits(text: string): string {
   return text
     .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+}
+
+/** Persian/Arabic digits and separators become English. */
+export function toEnglishNumeric(value: string): string {
+  return normalizeDigits(value).replace(/[٬،]/g, ',');
+}
+
+/** Groups an amount as English digits, three at a time: 5000000 → 5,000,000. */
+export function formatAmount(value: string): string {
+  const digits = toEnglishNumeric(value).replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  if (!digits) return '';
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 export function sanitizeNationalCode(value: string, isLegal: boolean): string {
@@ -140,6 +164,8 @@ export function extractData(rawText: string, options?: { legal?: boolean }): Ext
   if (checkMatch) {
     checkSerial = `${checkMatch[1]}/${checkMatch[2]}`;
   }
+
+  if (amount) amount = formatAmount(amount);
 
   return {
     date,
